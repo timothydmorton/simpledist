@@ -4,9 +4,25 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 try:
-    import plotutils as plu
+    from plotutils import setfig
 except ImportError:
-    print "plotutils (e.g. nifty 'setfig' function) not imported; plotting distributions won't work."
+    def setfig(fig,**kwargs):
+        """
+        Sets figure to 'fig' and clears; if fig is 0, does nothing (e.g. for overplotting)
+    
+        if fig is None (or anything else), creates new figure
+        
+        I use this for basically every function I write to make a plot.  I give the function
+        a "fig=None" kw argument, so that it will by default create a new figure.
+        """
+        if fig:
+            plt.figure(fig,**kwargs)
+            plt.clf()
+        elif fig==0:
+            pass
+        else:
+            plt.figure(**kwargs)
+
 from scipy.interpolate import UnivariateSpline as interpolate
 from scipy.integrate import quad
 from scipy.stats import gaussian_kde
@@ -16,6 +32,10 @@ from scipy.special import erf
 from scipy.optimize import leastsq
 
 class Distribution(object):
+    """Base class to describe probability distribution.
+    
+    Tries to have some functional overlap with scipy.stats random variates (e.g. ppf, rvs)
+    """
     def __init__(self,pdf,cdf=None,name='',minval=-np.inf,maxval=np.inf,norm=None,
                  no_cdf=False,prior=None,cdf_pts=500):
         self.name = name
@@ -120,7 +140,7 @@ class Distribution(object):
         else:
             xs = np.linspace(minval,maxval,npts)
 
-        plu.setfig(fig)
+        setfig(fig)
         plt.plot(xs,self(xs),**kwargs)
         if plotprior:
             lhoodnorm = quad(self.lhood,self.minval,self.maxval)[0]
@@ -477,7 +497,7 @@ class Hist_Distribution(Distribution):
         return '%s = %.1f +/- %.1f' % (self.name,self.samples.mean(),self.samples.std())
 
     def plothist(self,fig=None,**kwargs):
-        plu.setfig(fig)
+        setfig(fig)
         plt.hist(self.samples,bins=self.bins,**kwargs)
 
     def resample(self,N):
@@ -538,8 +558,6 @@ class Combined_Distribution(Distribution):
         else:
             return self.dict[ind]
 
-
-### KDE distribution ported from utils.py
 
 
 class KDE(object):
