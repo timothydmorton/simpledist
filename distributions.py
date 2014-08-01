@@ -34,7 +34,7 @@ from scipy.optimize import leastsq
 class Distribution(object):
     """Base class to describe probability distribution.
     
-    Tries to have some functional overlap with scipy.stats random variates (e.g. ppf, rvs)
+    Has some minimal functional overlap with scipy.stats random variates (e.g. ppf, rvs)
     """
     def __init__(self,pdf,cdf=None,name='',minval=-np.inf,maxval=np.inf,norm=None,
                  no_cdf=False,prior=None,cdf_pts=500):
