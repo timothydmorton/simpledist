@@ -1,2 +1,2 @@
-__all__ = ['distributions','doublegauss','kde','lorgauss']
+__all__ = ['distributions']
 
