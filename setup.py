@@ -18,7 +18,7 @@ setup(name = "simpledist",
       'Operating System :: OS Independent',
       'Programming Language :: Python',
       'Topic :: Scientific/Engineering'
-      ]
+      ],
     install_requires=['plotutils'],
     zip_safe=False)
 ) 
