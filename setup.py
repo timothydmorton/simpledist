@@ -20,5 +20,5 @@ setup(name = "simpledist",
       'Topic :: Scientific/Engineering'
       ],
     install_requires=['plotutils'],
-    zip_safe=False)
+    zip_safe=False
 ) 
