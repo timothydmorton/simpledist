@@ -211,6 +211,14 @@ class Distribution(object):
 
         npoints : int
             Number of points to plot.
+
+        kwargs
+            Keyword arguments are passed to plt.plot
+
+        Raises
+        ------
+        ValueError
+            If finite lower and upper bounds are not provided.
         """
         if minval is None:
             minval = self.minval
