@@ -453,10 +453,27 @@ class Hist_Distribution(Distribution):
         return '%s = %.1f +/- %.1f' % (self.name,self.samples.mean(),self.samples.std())
 
     def plothist(self,fig=None,**kwargs):
+        """Plots a histogram of samples using provided bins.
+        
+        Parameters
+        ----------
+        fig : None or int
+            Parameter passed to `setfig`.
+
+        kwargs
+            Keyword arguments passed to `plt.hist`.
+        """
         setfig(fig)
         plt.hist(self.samples,bins=self.bins,**kwargs)
 
     def resample(self,N):
+        """Returns a bootstrap resampling of provided samples.
+
+        Parameters
+        ----------
+        N : int
+            Number of samples.
+        """
         inds = rand.randint(len(self.samples),size=N)
         return self.samples[inds]
 
@@ -480,8 +497,8 @@ class Box_Distribution(Distribution):
         def cdf(x):
             x = np.atleast_1d(x)
             y = (x - lo) / (hi - lo)
-            y[np.where(x < lo)] = 0
-            y[np.where(x > hi)] = 1
+            y[x < lo] = 0
+            y[x > hi] = 1
             return y
 
         Distribution.__init__(self,pdf,cdf,minval=lo,maxval=hi,**kwargs)
@@ -490,6 +507,8 @@ class Box_Distribution(Distribution):
         return '%.1f < %s < %.1f' % (self.lo,self.name,self.hi)
 
     def resample(self,N):
+        """Returns a random sampling.
+        """
         return rand.random(size=N)*(self.maxval - self.minval) + self.minval
 
 
@@ -497,6 +516,27 @@ class Box_Distribution(Distribution):
 ############## Double LorGauss ###########
 
 def double_lorgauss(x,p):
+    """Evaluates a normalized distribution that is a mixture of a double-sided Gaussian and Double-sided Lorentzian.
+
+    Parameters
+    ----------
+    x : float or array-like
+        Value(s) at which to evaluate distribution
+
+    p : array-like
+        Input parameters: mu (mode of distribution),
+                          sig1 (LH Gaussian width),
+                          sig2 (RH Gaussian width),
+                          gam1 (LH Lorentzian width),
+                          gam2 (RH Lorentzian width),
+                          G1 (LH Gaussian "strength"),
+                          G2 (RH Gaussian "strength").
+
+    Returns
+    -------
+    values : float or array-like
+        Double LorGauss distribution evaluated at input(s).
+    """
     mu,sig1,sig2,gam1,gam2,G1,G2 = p
     gam1 = float(gam1)
     gam2 = float(gam2)
@@ -526,7 +566,28 @@ def double_lorgauss(x,p):
     return  y1*lo + y2*hi
 
 def fit_double_lorgauss(bins,h,Ntry=5):
-    """Uses lmfit to fit a "Double LorGauss" distribution.
+    """Uses lmfit to fit a "Double LorGauss" distribution to a provided histogram.
+
+    Uses a grid of starting guesses to try to avoid local minima.
+
+    Parameters
+    ----------
+    bins, h : array-like
+        Bins and heights of a histogram, as returned by, e.g., `np.histogram`.
+
+    Ntry : int, optional
+        Spacing of grid for starting guesses.  Will try `Ntry**2` different
+        initial values of the "Gaussian strength" parameters `G1` and `G2`.
+
+    Returns
+    -------
+    parameters : tuple
+        Parameters of best-fit "double LorGauss" distribution.
+
+    Raises
+    ------
+    ImportError
+        If the lmfit module is not available.
     """
     try:
         from lmfit import minimize, Parameters, Parameter, report_fit
@@ -596,6 +657,16 @@ def fit_double_lorgauss(bins,h,Ntry=5):
 
 
 class DoubleLorGauss_Distribution(Distribution):
+    """Defines a "double LorGauss" distribution according to the provided parameters.
+
+    Parameters
+    ----------
+    mu,sig1,sig2,gam1,gam2,G1,G2 : float
+        Parameters of double_lorgauss function.
+
+    kwargs
+        Keyword arguments passed to `Distribution` constructor.
+    """
     def __init__(self,mu,sig1,sig2,gam1,gam2,G1,G2,**kwargs):
         self.mu = mu
         self.sig1 = sig1
