@@ -203,16 +203,16 @@ class Distribution(object):
             maximum value to plot.  Required if maxval of Distribution is 
             `np.inf`.
 
-        fig : None or int
+        fig : None or int, optional
             Parameter to pass to `setfig`.  If `None`, then a new figure is 
             created; if a non-zero integer, the plot will go to that figure 
             (clearing everything first), if zero, then will overplot on 
             current axes.
 
-        log : bool
+        log : bool, optional
             If `True`, the x-spacing of the points to plot will be logarithmic.
 
-        npoints : int
+        npoints : int, optional
             Number of points to plot.
 
         kwargs
@@ -252,14 +252,14 @@ class Distribution(object):
         N : int
             Number of samples to return
 
-        minval,maxval : float
+        minval,maxval : float, optional
             Minimum/maximum values to resample.  Should both usually just be 
             `None`, which will default to `self.minval`/`self.maxval`.
 
-        log : bool
+        log : bool, optional
             Whether grid should be log- or linear-spaced.
 
-        res : int
+        res : int, optional
             Resolution of CDF grid used.
 
         Returns
@@ -309,11 +309,11 @@ class Distribution_FromH5(Distribution):
     filename : string
         .h5 file where the distribution is saved.
 
-    path : string
+    path : string, optional
         Path within the .h5 file where the distribution is saved.  By 
         default this will be the root level, but can be anywhere.
 
-    disttype : {None, 'hist', 'kde'}
+    disttype : {None, 'hist', 'kde'}, optional
         If this is set to 'hist' or 'kde', then samples must also be 
         saved in the .h5 file.  (This is done automatically when saving
         `Hist_Distribution` or `KDE_Distribution` objects.
@@ -342,15 +342,42 @@ class Empirical_Distribution(Distribution):
 
     Parameters
     ----------
-    
+    xs : array-like
+        x-values at which the PDF is evaluated
+
+    pdf : array-like
+        Values of pdf at provided x-values.
+
+    smooth : int or float
+        Smoothing parameter used by the interpolation.
+
+    kwargs
+        Keyword arguments passed to `Distribution` constructor.
     """
     def __init__(self,xs,pdf,smooth=0,**kwargs):
         pdf /= np.trapz(pdf,xs)
         fn = interpolate(xs,pdf,s=smooth)
-        Distribution.__init__(self,fn,minval=xs.min(),maxval=xs.max())
+        Distribution.__init__(self,fn,minval=xs.min(),maxval=xs.max(),**kwargs)
         
 
 class Gaussian_Distribution(Distribution):
+    """Generates a normal distribution with given mu, sigma.
+
+    ***It's probably better to use scipy.stats.norm rather than this
+       if you care about numerical precision/speed and don't care about the
+       plotting bells/whistles etc. the `Distribution` class provides.***
+
+    Parameters
+    ----------
+    mu : float
+        Mean of normal distribution.
+
+    sig : float
+        Width of normal distribution.
+
+    kwargs
+        Keyword arguments passed to `Distribution` constructor.
+    """
     def __init__(self,mu,sig,**kwargs):
         self.mu = mu
         self.sig = sig
@@ -375,6 +402,31 @@ class Gaussian_Distribution(Distribution):
 
 
 class Hist_Distribution(Distribution):
+    """Generates a distribution from a histogram of provided samples.
+
+    Uses `np.histogram` to create a histogram using the bins keyword,
+    then interpolates this histogram to create the pdf to pass to the
+    `Distribution` constructor.
+
+    Parameters
+    ----------
+    samples : array-like
+        The samples used to create the distribution
+
+    bins : int or array-like, optional
+        Keyword passed to `np.histogram`.  If integer, ths will be 
+        the number of bins, if array-like, then this defines bin edges.
+
+    smooth : int or float
+        Smoothing parameter used by the interpolation function.
+
+    order : int
+        Order of the spline to be used for interpolation.  Default is
+        for linear interpolation.
+
+    kwargs
+        Keyword arguments passed to `Distribution` constructor.
+    """
     def __init__(self,samples,bins=10,smooth=0,order=1,**kwargs):
         self.samples = samples
         hist,bins = np.histogram(samples,bins=bins,density=True)
@@ -409,6 +461,17 @@ class Hist_Distribution(Distribution):
         return self.samples[inds]
 
 class Box_Distribution(Distribution):
+    """Simple distribution uniform between provided lower and upper limits.
+
+    Parameters
+    ----------
+    lo,hi : float
+        Lower/upper limits of the distribution.
+
+    kwargs
+        Keyword arguments passed to `Distribution` constructor.
+
+    """
     def __init__(self,lo,hi,**kwargs):
         self.lo = lo
         self.hi = hi
