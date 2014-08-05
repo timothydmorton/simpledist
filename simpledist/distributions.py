@@ -168,7 +168,7 @@ class Distribution_FromH5(Distribution):
                               **kwargs)
 
 
-class EmpiricalDistribution(Distribution):
+class Empirical_Distribution(Distribution):
     def __init__(self,xs,pdf,smooth=0,**kwargs):
         pdf /= np.trapz(pdf,xs)
         fn = interpolate(xs,pdf,s=smooth)
