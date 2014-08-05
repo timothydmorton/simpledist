@@ -1,3 +1,7 @@
+"""
+Defines objects useful for describing probability distributions.
+"""
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -8,7 +12,6 @@ from plotutils import setfig
 from scipy.interpolate import UnivariateSpline as interpolate
 from scipy.integrate import quad
 from scipy.stats import gaussian_kde
-#from lmfit import minimize, Parameters, Parameter, report_fit
 import numpy.random as rand
 from scipy.special import erf
 from scipy.optimize import leastsq
@@ -322,7 +325,11 @@ def double_lorgauss(x,p):
 def fit_double_lorgauss(bins,h,Ntry=5):
     """Uses lmfit to fit a "Double LorGauss" distribution.
     """
-
+    try:
+        from lmfit import minimize, Parameters, Parameter, report_fit
+    except ImportError:
+        raise ImportError('you need lmfit to use this function.')
+        
     #make sure histogram is normalized
     h /= np.trapz(h,bins)
 
