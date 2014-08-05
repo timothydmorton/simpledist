@@ -196,15 +196,18 @@ class Distribution(object):
         Parameters
         ----------
         minval : float,optional
-            minimum value to plot.  Required if minval of Distribution is `-np.inf`.
+            minimum value to plot.  Required if minval of Distribution is 
+            `-np.inf`.
 
         maxval : float, optional
-            maximum value to plot.  Required if maxval of Distribution is `np.inf`.
+            maximum value to plot.  Required if maxval of Distribution is 
+            `np.inf`.
 
         fig : None or int
-            Parameter to pass to `setfig`.  If `None`, then a new figure is created,
-            if a non-zero integer, the plot will go to that figure (clearing everything
-            first), if zero, then will overplot on current axes.
+            Parameter to pass to `setfig`.  If `None`, then a new figure is 
+            created; if a non-zero integer, the plot will go to that figure 
+            (clearing everything first), if zero, then will overplot on 
+            current axes.
 
         log : bool
             If `True`, the x-spacing of the points to plot will be logarithmic.
@@ -238,6 +241,39 @@ class Distribution(object):
         plt.ylim(ymin=0)
 
     def resample(self,N,minval=None,maxval=None,log=False,res=1e4):
+        """Returns random samples generated according to the distribution
+
+        Mirrors basic functionality of `rvs` method for `scipy.stats`
+        random variates.  Implemented by mapping uniform numbers onto the
+        inverse CDF using a closest-matching grid approach.
+
+        Parameters
+        ----------
+        N : int
+            Number of samples to return
+
+        minval,maxval : float
+            Minimum/maximum values to resample.  Should both usually just be 
+            `None`, which will default to `self.minval`/`self.maxval`.
+
+        log : bool
+            Whether grid should be log- or linear-spaced.
+
+        res : int
+            Resolution of CDF grid used.
+
+        Returns
+        -------
+        values : ndarray
+            N samples.
+
+        Raises
+        ------
+        ValueError
+            If maxval/minval are +/- infinity, this doesn't work because of
+            the grid-based approach.
+
+        """
         if minval is None:
             minval = self.minval
         if maxval is None:
@@ -259,6 +295,32 @@ class Distribution(object):
         return self.resample(*args,**kwargs)
 
 class Distribution_FromH5(Distribution):
+    """Creates a Distribution object from one saved to an HDF file.
+
+    File must have a `DataFrame` saved under [path]/fns in 
+    the .h5 file, containing 'vals', 'pdf', and 'cdf' columns.  If the
+    `disttype` keyword is set to 'hist' or 'kde', then also [path]/samples
+    should exist in the .h5 file containing the array of samples.  These
+    appropriate .h5 files will be created by a call to the `save_hdf` method
+    of the generic `Distribution` class.
+
+    Parameters
+    ----------
+    filename : string
+        .h5 file where the distribution is saved.
+
+    path : string
+        Path within the .h5 file where the distribution is saved.  By 
+        default this will be the root level, but can be anywhere.
+
+    disttype : {None, 'hist', 'kde'}
+        If this is set to 'hist' or 'kde', then samples must also be 
+        saved in the .h5 file.  (This is done automatically when saving
+        `Hist_Distribution` or `KDE_Distribution` objects.
+
+    kwargs
+        Keyword arguments are passed to the `Distribution` constructor.
+    """
     def __init__(self,filename,path='',disttype=None,**kwargs):
         """if disttype is 'hist' or 'kde' then samples are required
         """
@@ -276,6 +338,12 @@ class Distribution_FromH5(Distribution):
 
 
 class Empirical_Distribution(Distribution):
+    """Generates a Distribution object given a tabulated PDF.
+
+    Parameters
+    ----------
+    
+    """
     def __init__(self,xs,pdf,smooth=0,**kwargs):
         pdf /= np.trapz(pdf,xs)
         fn = interpolate(xs,pdf,s=smooth)
