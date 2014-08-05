@@ -1,3 +1,4 @@
+__author__ = 'Timothy D. Morton <tim.morton@gmail.com>'
 """
 Defines objects useful for describing probability distributions.
 """
@@ -19,48 +20,67 @@ from scipy.optimize import leastsq
 class Distribution(object):
     """Base class to describe probability distribution.
     
-    Has some minimal functional overlap with scipy.stats random variates (e.g. ppf, rvs)
+    Has some minimal functional overlap with scipy.stats random variates
+    (e.g. `ppf`, `rvs`)
+        
+    Parameters
+    ----------
+    pdf : callable
+        The probability density function to be used.  Does not have to be
+        normalized, but must be non-negative.
+        
+    cdf : callable, optional
+        The cumulative distribution function.  If not provided, this will
+        be tabulated from the pdf, as long as minval and maxval are also provided
+        
+    name : string, optional
+        The name of the distribution (will be used, for example, to label a plot).
+        Default is empty string.
+        
+    minval,maxval : float, optional
+        The minimum and maximum values of the distribution.  The Distribution will
+        evaluate to zero outside these ranges, and this will also define the range
+        of the CDF.  Defaults are -np.inf and +np.inf.  If these are not explicity
+        provided, then a CDF function must be provided.
+
+    norm : float, optional
+        If not provided, this will be calculated by integrating the pdf from
+        minval to maxval so that the Distribution is a proper PDF that integrates
+        to unity.  `norm` can be non-unity if desired, but beware, as this will
+        cause some things to act unexpectedly.
+
+    cdf_pts : int, optional
+        Number of points to tabulate in order to calculate CDF, if not provided.
+        Default is 500.
+
+    Raises
+    ------
+    ValueError
+        If `cdf` is not provided and minval or maxval are infinity.
+    
     """
     def __init__(self,pdf,cdf=None,name='',minval=-np.inf,maxval=np.inf,norm=None,
-                 no_cdf=False,prior=None,cdf_pts=500):
-        self.name = name
-
-        def newpdf(x):
-            if prior is None:
-                return pdf(x)
-            else:
-                return prior(x)*pdf(x)
-
-        self.lhood = pdf
-            
-        self.pdf = newpdf
-        self.cdf = cdf #won't be right if prior given
+                 cdf_pts=500):
+        self.name = name            
+        self.pdf = pdf
+        self.cdf = cdf 
         self.minval = minval
         self.maxval = maxval
-
-        self.prior = prior
-
-        if not hasattr(self,'Ndists'):
-            self.Ndists = 1
 
         if norm is None:
             self.norm = quad(self.pdf,minval,maxval,full_output=1)[0]
         else:
             self.norm = norm
 
-        if (cdf is None and not no_cdf and minval != -np.inf and maxval != np.inf) or prior is not None:
+        if cdf is None and (minval == -np.inf or maxval == np.inf):
+            raise ValueError('must provide either explicit cdf function or explicit min/max values')
+
+        else: #tabulate & interpolate CDF.
             pts = np.linspace(minval,maxval,cdf_pts)
             pdfgrid = self(pts)
-            #fix special case: last value is infinity (i.e. from isotropic prior)
-            if np.isinf(pdfgrid[-1]):
-                tip_integral = quad(self,pts[-2],pts[-1])[0]
-                #print tip_integral
-                cdfgrid = pdfgrid[:-1].cumsum()/pdfgrid[:-1].cumsum().max() * (1-tip_integral)
-                cdfgrid = np.concatenate((cdfgrid,[1]))
-            else:
-                cdfgrid = pdfgrid.cumsum()/pdfgrid.cumsum().max()
-
+            cdfgrid = pdfgrid.cumsum()/pdfgrid.cumsum().max()
             cdf_fn = interpolate(pts,cdfgrid,s=0)
+            
             def cdf(x):
                 x = np.atleast_1d(x)
                 y = np.atleast_1d(cdf_fn(x))
@@ -70,12 +90,56 @@ class Distribution(object):
             self.cdf = cdf
 
     def pctile(self,pct,res=1000):
+        """Returns the desired percentile of the distribution.
+
+        Will only work if properly normalized.  Designed to mimic
+        the `ppf` method of the `scipy.stats` random variate objects.
+        Works by gridding the CDF at a given resolution and matching the nearest
+        point.  NB, this is of course not as precise as an analytic ppf.
+
+        Parameters
+        ----------
+
+        pct : float
+            Percentile between 0 and 1.
+
+        res : int, optional
+            The resolution at which to grid the CDF to find the percentile.
+
+        Returns
+        -------
+        percentile : float
+        """
         grid = np.linspace(self.minval,self.maxval,res)
         return grid[np.argmin(np.absolute(pct-self.cdf(grid)))]
 
     ppf = pctile
 
     def save_hdf(self,filename,path='',res=1000,logspace=False):
+        """Saves distribution to an HDF5 file.
+
+        Saves a pandas `dataframe` object containing tabulated pdf and cdf
+        values at a specfied resolution.  After saving to a particular path, a
+        distribution may be regenerated using the `Distribution_FromH5` subclass.  
+
+        Parameters
+        ----------
+        filename : string
+            File in which to save the distribution.  Should end in .h5.
+
+        path : string, optional
+            Path in which to save the distribution within the .h5 file.  By
+            default this is an empty string, which will lead to saving the
+            `fns` dataframe at the root level of the file.
+
+        res : int, optional
+            Resolution at which to grid the distribution for saving.
+
+        logspace : bool, optional
+            Sets whether the tabulated function should be gridded with log or
+            linear spacing.  Default will be logspace=False, corresponding
+            to linear gridding.
+        """
         if logspace:
             vals = np.logspace(np.log10(self.minval),
                                np.log10(self.maxval),
@@ -88,20 +152,32 @@ class Distribution(object):
         df = pd.DataFrame(d)
         df.to_hdf(filename,path+'/fns')
     
-    def __add__(self,other):
-        return Combined_Distribution((self,other))
-
-    def __radd__(self,other):
-        return self.__add__(other)
-
     def __call__(self,x):
+        """
+        Evaluates pdf.  Forces zero outside of (self.minval,self.maxval).  Will return
+
+        Parameters
+        ----------
+        x : float, array-like
+            Value(s) at which to evaluate PDF.
+
+        Returns
+        -------
+        pdf : float, array-like
+            Probability density (or re-normalized density if self.norm was explicity
+            provided.
+        
+        """
         y = self.pdf(x)
         x = np.atleast_1d(x)
         y = np.atleast_1d(y)
-        w = np.where((x < self.minval) | (x > self.maxval))
-        y[w] = 0
-        return y/self.norm
-
+        y[(x < self.minval) | (x > self.maxval)] = 0
+        y /= self.norm
+        if np.size(x)==1:
+            return y[0]
+        else:
+            return y
+        
     def __str__(self):
         return '%s = %.2f +%.2f -%.2f' % (self.name,
                                           self.pctile(0.5),
@@ -112,13 +188,36 @@ class Distribution(object):
         return '<%s object: %s>' % (type(self),str(self))
 
 
-    def plot(self,minval=None,maxval=None,fig=None,log=False,npts=500,plotprior=True,**kwargs):
+    def plot(self,minval=None,maxval=None,fig=None,log=False,
+             npts=500,**kwargs):
+        """
+        Plots distribution.
+
+        Parameters
+        ----------
+        minval : float,optional
+            minimum value to plot.  Required if minval of Distribution is `-np.inf`.
+
+        maxval : float, optional
+            maximum value to plot.  Required if maxval of Distribution is `np.inf`.
+
+        fig : None or int
+            Parameter to pass to `setfig`.  If `None`, then a new figure is created,
+            if a non-zero integer, the plot will go to that figure (clearing everything
+            first), if zero, then will overplot on current axes.
+
+        log : bool
+            If `True`, the x-spacing of the points to plot will be logarithmic.
+
+        npoints : int
+            Number of points to plot.
+        """
         if minval is None:
             minval = self.minval
         if maxval is None:
             maxval = self.maxval
         if maxval==np.inf or minval==-np.inf:
-            raise ValueError('must have finite upper and lower bounds to plot. (set minval, maxval kws)')
+            raise ValueError('must have finite upper and lower bounds to plot. (use minval, maxval kws)')
 
         if log:
             xs = np.logspace(np.log10(minval),np.log10(maxval),npts)
@@ -127,9 +226,6 @@ class Distribution(object):
 
         setfig(fig)
         plt.plot(xs,self(xs),**kwargs)
-        if plotprior:
-            lhoodnorm = quad(self.lhood,self.minval,self.maxval)[0]
-            plt.plot(xs,self.lhood(xs)/lhoodnorm,ls=':')
         plt.xlabel(self.name)
         plt.ylim(ymin=0)
 
@@ -257,38 +353,6 @@ class Box_Distribution(Distribution):
     def resample(self,N):
         return rand.random(size=N)*(self.maxval - self.minval) + self.minval
 
-class Combined_Distribution(Distribution):
-    def __init__(self,dist_list,minval=-np.inf,maxval=np.inf,labels=None,**kwargs):
-        self.dist_list = list(dist_list)
-        #self.Ndists = len(dist_list)
-
-        self.dict = {}
-        if labels is not None:
-            for label,dist in zip(labels,dist_list):
-                self.dict[label] = dist
-
-        N = 0
-        
-        for dist in dist_list:
-            N += dist.Ndists
-            
-        self.Ndists = N
-        self.minval = minval
-        self.maxval = maxval
-
-        def pdf(x):
-            y = x*0
-            for dist in dist_list:
-                y += dist(x)
-            return y/N
-
-        Distribution.__init__(self,pdf,minval=minval,maxval=maxval,**kwargs)
-
-    def __getitem__(self,ind):
-        if type(ind) == type(1):
-            return self.dist_list[ind]
-        else:
-            return self.dict[ind]
 
 
 ############## Double LorGauss ###########
