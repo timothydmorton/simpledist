@@ -5,17 +5,18 @@ Defines objects useful for describing probability distributions.
 
 import numpy as np
 import matplotlib.pyplot as plt
+import logging
+from scipy.interpolate import UnivariateSpline as interpolate
+from scipy.integrate import quad
+import numpy.random as rand
+from scipy.special import erf
+from scipy.optimize import leastsq
 
 import pandas as pd
 
 from plotutils import setfig
 
-from scipy.interpolate import UnivariateSpline as interpolate
-from scipy.integrate import quad
-from scipy.stats import gaussian_kde
-import numpy.random as rand
-from scipy.special import erf
-from scipy.optimize import leastsq
+from .kde import KDE
 
 class Distribution(object):
     """Base class to describe probability distribution.
@@ -535,7 +536,8 @@ def double_lorgauss(x,p):
     Returns
     -------
     values : float or array-like
-        Double LorGauss distribution evaluated at input(s).
+        Double LorGauss distribution evaluated at input(s).  If single value provided,
+        single value returned. 
     """
     mu,sig1,sig2,gam1,gam2,G1,G2 = p
     gam1 = float(gam1)
@@ -662,7 +664,7 @@ class DoubleLorGauss_Distribution(Distribution):
     Parameters
     ----------
     mu,sig1,sig2,gam1,gam2,G1,G2 : float
-        Parameters of double_lorgauss function.
+        Parameters of `double_lorgauss` function.
 
     kwargs
         Keyword arguments passed to `Distribution` constructor.
@@ -688,19 +690,52 @@ class DoubleLorGauss_Distribution(Distribution):
 ######## DoubleGauss #########
 
 def doublegauss(x,p):
-    mu,siglo,sighi = p
+    """Evaluates normalized two-sided Gaussian distribution
+
+    Parameters
+    ----------
+    x : float or array-like
+        Value(s) at which to evaluate distribution
+
+    p : array-like
+        Parameters of distribution: (mu: mode of distribution,
+                                     sig1: LH width,
+                                     sig2: RH width)
+
+    Returns
+    -------
+    value : float or array-like
+        Distribution evaluated at input value(s).  If single value provided,
+        single value returned.
+    """
+    mu,sig1,sig2 = p
     x = np.atleast_1d(x)
-    A = 1./(np.sqrt(2*np.pi)*(siglo+sighi)/2.)
-    ylo = A*np.exp(-(x-mu)**2/(2*siglo**2))
-    yhi = A*np.exp(-(x-mu)**2/(2*sighi**2))
+    A = 1./(np.sqrt(2*np.pi)*(sig1+sig2)/2.)
+    ylo = A*np.exp(-(x-mu)**2/(2*sig1**2))
+    yhi = A*np.exp(-(x-mu)**2/(2*sig2**2))
     y = x*0
     wlo = np.where(x < mu)
     whi = np.where(x >= mu)
     y[wlo] = ylo[wlo]
     y[whi] = yhi[whi]
-    return y    
+    if np.size(x)==1:
+        return y[0]
+    else:
+        return y    
 
 def doublegauss_cdf(x,p):
+    """Cumulative distribution function for two-sided Gaussian
+
+    Parameters
+    ----------
+    x : float
+        Input values at which to calculate CDF.
+
+    p : array-like
+        Parameters of distribution: (mu: mode of distribution,
+                                     sig1: LH width,
+                                     sig2: RH width)
+    """
     x = np.atleast_1d(x)
     mu,sig1,sig2 = p
     sig1 = np.absolute(sig1)
@@ -712,6 +747,19 @@ def doublegauss_cdf(x,p):
     return ylo*lo + yhi*hi
 
 def fit_doublegauss_samples(samples,**kwargs):
+    """Fits a two-sided Gaussian to a set of samples.
+
+    Calculates 0.16, 0.5, and 0.84 quantiles and passes these to
+    `fit_doublegauss` for fitting.
+
+    Parameters
+    ----------
+    samples : array-like
+        Samples to which to fit the Gaussian.
+
+    kwargs
+        Keyword arguments passed to `fit_doublegauss`.
+    """
     sorted_samples = np.sort(samples)
     N = len(samples)
     med = sorted_samples[N/2]
@@ -720,16 +768,48 @@ def fit_doublegauss_samples(samples,**kwargs):
     return fit_doublegauss(med,siglo,sighi,median=True,**kwargs)
     
 
-def fit_doublegauss(med,siglo,sighi,interval=0.68,p0=None,median=False,return_distribution=True,debug=False):
+def fit_doublegauss(med,siglo,sighi,interval=0.683,p0=None,median=False,return_distribution=True):
+    """Fits a two-sided Gaussian distribution to match a given confidence interval.
+
+    The center of the distribution may be either the median or the mode.
+
+    Parameters
+    ----------
+    med : float
+        The center of the distribution to which to fit.  Default this
+        will be the mode unless the `median` keyword is set to True.
+
+    siglo : float
+        Value at lower quantile (`q1 = 0.5 - interval/2`) to fit.  Often this is
+        the "lower error bar."
+
+    sighi : float
+        Value at upper quantile (`q2 = 0.5 + interval/2`) to fit.  Often this is
+        the "upper error bar."
+
+    interval : float, optional
+        The confidence interval enclosed by the provided error bars.  Default
+        is 0.683 (1-sigma).
+
+    p0 : array-like, optional
+        Initial guess `doublegauss` parameters for the fit (`mu, sig1, sig2`).
+
+    median : bool, optional
+        Whether to treat the `med` parameter as the median or mode
+        (default will be mode).
+
+    return_distribution: bool, optional
+        If `True`, then function will return a `DoubleGauss_Distribution` object.
+        Otherwise, will return just the parameters.
+    """
     if median:
         q1 = 0.5 - (interval/2)
         q2 = 0.5 + (interval/2)
         targetvals = np.array([med-siglo,med,med+sighi])
         qvals = np.array([q1,0.5,q2])
         def objfn(pars):
-            if debug:
-                print pars
-                print doublegauss_cdf(targetvals,pars),qvals
+            logging.debug('{}'.format(pars))
+            logging.debug('{} {}'.format(doublegauss_cdf(targetvals,pars),qvals))
             return doublegauss_cdf(targetvals,pars) - qvals
 
         if p0 is None:
@@ -757,20 +837,32 @@ def fit_doublegauss(med,siglo,sighi,interval=0.68,p0=None,median=False,return_di
         return pfit
     
 class DoubleGauss_Distribution(Distribution):
+    """A Distribution oject representing a two-sided Gaussian distribution
+
+    This can be used to represent a slightly asymmetric distribution,
+    and consists of two half-Normal distributions patched together at the
+    mode, and normalized appropriately.  The pdf and cdf are according to
+    the `doubleguass` and `doubleguass_cdf` functions, respectively.
+
+    Parameters
+    ----------
+    mu : float
+        The mode of the distribution.
+
+    siglo : float
+        Width of lower half-Gaussian.
+
+    sighi : float
+        Width of upper half-Gaussian.
+
+    kwargs
+        Keyword arguments are passed to `Distribution` constructor.
+    """
     def __init__(self,mu,siglo,sighi,**kwargs):
         self.mu = mu
         self.siglo = float(siglo)
         self.sighi = float(sighi)
         def pdf(x):
-            #x = np.atleast_1d(x)
-            #A = 1./(np.sqrt(2*np.pi)*(siglo+sighi)/2.)
-            #ylo = A*np.exp(-(x-mu)**2/(2*siglo**2))
-            #yhi = A*np.exp(-(x-mu)**2/(2*sighi**2))
-            #y = x*0
-            #wlo = np.where(x < mu)
-            #whi = np.where(x >= mu)
-            #y[wlo] = ylo[wlo]
-            #y[whi] = yhi[whi]
             return doublegauss(x,(mu,siglo,sighi))
         def cdf(x):
             return doublegauss_cdf(x,(mu,siglo,sighi))
@@ -781,26 +873,25 @@ class DoubleGauss_Distribution(Distribution):
             kwargs['maxval'] = mu + 5*sighi
 
         Distribution.__init__(self,pdf,cdf,**kwargs)
-        #Distribution.__init__(self,pdf,**kwargs)
 
     def __str__(self):
         return '%s = %.2f +%.2f -%.2f' % (self.name,self.mu,self.sighi,self.siglo)
 
     def resample(self,N,**kwargs):
+        """Random resampling of the doublegauss distribution
+        """
         lovals = self.mu - np.absolute(rand.normal(size=N)*self.siglo)
         hivals = self.mu + np.absolute(rand.normal(size=N)*self.sighi)
 
         u = rand.random(size=N)
-        whi = np.where(u < float(self.sighi)/(self.sighi + self.siglo))
-        wlo = np.where(u >= float(self.sighi)/(self.sighi + self.siglo))
+        hi = (u < float(self.sighi)/(self.sighi + self.siglo))
+        lo = (u >= float(self.sighi)/(self.sighi + self.siglo))
 
         vals = np.zeros(N)
-        vals[whi] = hivals[whi]
-        vals[wlo] = lovals[wlo]
+        vals[hi] = hivals[hi]
+        vals[lo] = lovals[lo]
         return vals
-        
-        return rand.normal(size=N)*self.sig + self.mu
-
+    
 
 ######## KDE ###########
 
@@ -834,214 +925,3 @@ class KDE_Distribution_Fromtxt(KDE_Distribution):
         KDE_Distribution.__init__(self,samples,**kwargs)
 
 
-class KDE(object):
-    def __init__(self,dataset,kernel='tricube',adaptive=True,k=None,lo=None,hi=None,\
-                     fast=None,norm=None,bandwidth=None,weights=None,
-                 draw_direct=False,**kwargs):
-        self.dataset = np.atleast_1d(dataset)
-        self.weights = weights
-        self.n = np.size(dataset)
-        self.kernel = kernelfn(kernel)
-        self.kernelname = kernel
-        self.bandwidth = bandwidth
-        self.draw_direct = draw_direct
-        if k:
-            self.k = k
-        else:
-            self.k = self.n/4
-
-        if not norm:
-            self.norm=1.
-        else:
-            self.norm=norm
-
-
-        self.adaptive = adaptive
-        self.fast = fast
-        if adaptive:
-            if fast==None:
-                fast = self.n < 5001
-
-            if fast:
-                #d1,d2 = np.meshgrid(self.dataset,self.dataset) #use broadcasting instead of meshgrid
-                diff = np.absolute(self.dataset - self.dataset[:,np.newaxis])
-                diffsort = np.sort(diff,axis=0)
-                self.h = diffsort[self.k,:]
-
-        ##Attempt to handle larger datasets more easily:
-            else:
-                sortinds = np.argsort(self.dataset)
-                x = self.dataset[sortinds]
-                h = np.zeros(len(x))
-                for i in np.arange(len(x)):
-                    lo = i - self.k
-                    hi = i + self.k + 1
-                    if lo < 0:
-                        lo = 0
-                    if hi > len(x):
-                        hi = len(x)
-                    diffs = abs(x[lo:hi]-x[i])
-                    h[sortinds[i]] = np.sort(diffs)[self.k]
-                self.h = h
-        else:
-            self.gauss_kde = gaussian_kde(self.dataset,bw_method=bandwidth)
-            
-        self.properties=dict()
-
-        self.lo = lo
-        self.hi = hi
-
-    def shifted(self,x):
-        new = kde(self.dataset+x,self.kernel,self.adaptive,self.k,self.lo,self.hi,self.fast,self.norm)
-        return new
-
-    def renorm(self,norm):
-        self.norm = norm
-
-    def evaluate(self,points):
-        if not self.adaptive:
-            return self.gauss_kde(points)*self.norm
-        points = np.atleast_1d(points).astype(self.dataset.dtype)
-        k = self.k
-
-        npts = np.size(points)
-
-        h = self.h
-        
-        X,Y = np.meshgrid(self.dataset,points)
-        H = np.resize(h,(npts,self.n))
-
-        U = (X-Y)/H.astype(float)
-
-        result = 1./self.n*1./H*self.kernel(U)
-        return np.sum(result,axis=1)*self.norm
-            
-    __call__ = evaluate
-            
-    def __imul__(self,factor):
-        self.renorm(factor)
-        return self
-
-    #def __add__(self,other):
-    #    return composite_kde(self,other)
-
-    #__radd__ = __add__
-
-    def integrate_box(self,low,high,npts=500,forcequad=False):
-        if not self.adaptive and not forcequad:
-            return self.gauss_kde.integrate_box_1d(low,high)*self.norm
-        pts = np.linspace(low,high,npts)
-        return quad(self.evaluate,low,high)[0]
-
-    def draw(self,size=None):
-        return self.resample(size)
-
-    def resample(self,size=None,direct=None):
-        if direct is None:
-            direct = self.draw_direct
-        size=int(size)
-
-        if not self.adaptive:
-            return np.squeeze(self.gauss_kde.resample(size=size))
-
-        if direct:
-            inds = rand.randint(self.n,size=size)
-            return self.dataset[inds]
-        else:
-            if size is None:
-                size = self.n
-            indices = rand.randint(0,self.n,size=size)
-            means = self.dataset[indices]
-            h = self.h[indices]
-            fuzz = kerneldraw(size,self.kernelname)*h
-            return np.squeeze(means + fuzz)
-    
-
-def epkernel(u):
-    x = np.atleast_1d(u)
-    y = 3./4*(1-x*x)
-    y[np.where((x>1) | (x < -1))] = 0
-    return y
-
-def gausskernel(u):
-    return 1/np.sqrt(2*np.pi)*np.exp(-0.5*u*u)
-
-def tricubekernel(u):
-    x = np.atleast_1d(u)
-    y = 35./32*(1-x*x)**3
-    y[np.where((x > 1) | (x < -1))] = 0
-    return y
-
-def kernelfn(kernel='tricube'):
-    if kernel=='ep':
-        #def fn(u):
-        #    x = atleast_1d(u)
-        #    y = 3./4*(1-x*x)
-        #    y[where((x>1) | (x<-1))] = 0
-        #    return y
-        #return fn
-        return epkernel
-
-    elif kernel=='gauss':
-        #return lambda x: 1/sqrt(2*pi)*exp(-0.5*x*x)
-        return gausskernel
-
-    elif kernel=='tricube':
-        #def fn(u):
-        #    x = atleast_1d(u)
-        #    y = 35/32.*(1-x*x)**3
-        #    y[where((x>1) | (x<-1))] = 0
-        #    return y
-        #return fn
-        return tricubekernel
-
-def kerneldraw(size=1,kernel='tricube',exact=False):
-    if kernel=='tricube':
-        fn = lambda x: 1./2 + 35./32*x - 35./32*x**3 + 21./32*x**5 - 5./32*x**7
-        u = rand.random(size=size)
-
-        if not exact:
-            xs = np.linspace(-1,1,1e4)
-            ys = fn(xs)
-        
-            inds = np.digitize(u,ys)
-            return xs[inds]
-        else:
-            #old way (exact)
-            rets = np.zeros(size)
-            for i in np.arange(size):
-                f = lambda x: u[i]-fn(x)
-                rets[i] = newton(f,0,restrict=(-1,1))
-            return rets
-
-def deriv(f,c,dx=0.0001):
-    """
-    deriv(f,c,dx)  --> float
-    
-    Returns f'(x), computed as a symmetric difference quotient.
-    """
-    return (f(c+dx)-f(c-dx))/(2*dx)
-
-def fuzzyequals(a,b,tol=0.0001):
-    return abs(a-b) < tol
-
-def newton(f,c,tol=0.0001,restrict=None):
-    """
-    newton(f,c) --> float
-    
-    Returns the x closest to c such that f(x) = 0
-    """
-    #print c
-    if restrict:
-        lo,hi = restrict
-        if c < lo or c > hi:
-            print c
-            c = random*(hi-lo)+lo
-
-    if fuzzyequals(f(c),0,tol):
-        return c
-    else:
-        try:
-            return newton(f,c-f(c)/deriv(f,c,tol),tol,restrict)
-        except:
-            return None
