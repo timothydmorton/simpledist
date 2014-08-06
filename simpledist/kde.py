@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.stats import gaussian_kde
 import numpy.random as rand
+from scipy.integrate import quad
 
 class KDE(object):
     """An implementation of a kernel density estimator allowing for adaptive kernels.
@@ -34,6 +35,24 @@ class KDE(object):
         if the dataset is large.
 
     norm : float, optional
+        Allows the normalization of the distribution to be something other
+        than unity
+
+    bandwidth : `None` or float, optional
+        Passed to `scipy.stats.gaussian_kde` if not using adaptive mode.
+
+    weights : array-like, optional
+        Not yet implemented.
+
+    draw_direct : bool, optional
+        If `True`, then resampling will be just a bootstrap resampling
+        of the input samples.  If `False`, then resampling will actually
+        resample each individual kernel (not recommended for large-ish
+        datasets).
+        
+    kwargs
+        Keyword arguments passed to `scipy.stats.gaussian_kde` if adaptive
+        mode is not being used.
     """
     def __init__(self,dataset,kernel='tricube',adaptive=True,k=None,
                  fast=None,norm=1.,bandwidth=None,weights=None,
@@ -81,10 +100,11 @@ class KDE(object):
                     h[sortinds[i]] = np.sort(diffs)[self.k]
                 self.h = h
         else:
-            self.gauss_kde = gaussian_kde(self.dataset,bw_method=bandwidth)
+            self.gauss_kde = gaussian_kde(self.dataset,bw_method=bandwidth,**kwargs)
             
 
     def renorm(self,norm):
+        """Change the normalization"""
         self.norm = norm
 
     def evaluate(self,points):
@@ -107,23 +127,32 @@ class KDE(object):
             
     __call__ = evaluate
             
-    def __imul__(self,factor):
-        self.renorm(factor)
-        return self
+    def integrate_box(self,low,high,forcequad=False,**kwargs):
+        """Integrates over a box. Optionally force quad integration, even for non-adaptive.
 
-    #def __add__(self,other):
-    #    return composite_kde(self,other)
+        If adaptive mode is not being used, this will just call the
+        `scipy.stats.gaussian_kde` method `integrate_box_1d`.  Else,
+        by default, it will call `scipy.integrate.quad`.  If the
+        `forcequad` flag is turned on, then that integration will be
+        used even if adaptive mode is off.
 
-    #__radd__ = __add__
+        Parameters
+        ----------
+        low : float
+            Lower limit of integration
 
-    def integrate_box(self,low,high,npts=500,forcequad=False):
+        high : float
+            Upper limit of integration
+
+        forcequad : bool
+            If `True`, then use the quad integration even if adaptive mode is off.
+
+        kwargs
+            Keyword arguments passed to `scipy.integrate.quad`.
+        """
         if not self.adaptive and not forcequad:
             return self.gauss_kde.integrate_box_1d(low,high)*self.norm
-        pts = np.linspace(low,high,npts)
-        return quad(self.evaluate,low,high)[0]
-
-    def draw(self,size=None):
-        return self.resample(size)
+        return quad(self.evaluate,low,high,**kwargs)[0]
 
     def resample(self,size=None,direct=None):
         if direct is None:
@@ -144,7 +173,8 @@ class KDE(object):
             h = self.h[indices]
             fuzz = kerneldraw(size,self.kernelname)*h
             return np.squeeze(means + fuzz)
-    
+
+    draw = resample
 
 def epkernel(u):
     x = np.atleast_1d(u)
