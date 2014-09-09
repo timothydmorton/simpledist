@@ -478,6 +478,12 @@ class Hist_Distribution(Distribution):
         inds = rand.randint(len(self.samples),size=N)
         return self.samples[inds]
 
+    def save_hdf(self,filename,path='',**kwargs):
+        s = pd.Series(self.samples)
+        s.to_hdf(filename,path+'/samples')
+        Distribution.save_hdf(self,filename,path=path,**kwargs)
+
+    
 class Box_Distribution(Distribution):
     """Simple distribution uniform between provided lower and upper limits.
 
@@ -908,10 +914,10 @@ class KDE_Distribution(Distribution):
 
         Distribution.__init__(self,self.kde,**kwargs)
 
-    def save_hdf(self,filename,path=''):
+    def save_hdf(self,filename,path='',**kwargs):
         s = pd.Series(self.samples)
         s.to_hdf(filename,path+'/samples')
-        Distribution.save_hdf(self,filename,path=path)
+        Distribution.save_hdf(self,filename,path=path,**kwargs)
         
     def __str__(self):
         return '%s = %.1f +/- %.1f' % (self.name,self.samples.mean(),self.samples.std())
