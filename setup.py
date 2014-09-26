@@ -5,7 +5,7 @@ def readme():
         return f.read()
 
 setup(name = "simpledist",
-    version = "0.1.3",
+    version = "0.1.3-1",
     description = "Defines objects useful for describing simple probability distributions.",
     long_description = readme(),
     author = "Timothy D. Morton",
@@ -19,6 +19,6 @@ setup(name = "simpledist",
       'Programming Language :: Python',
       'Topic :: Scientific/Engineering'
       ],
-    install_requires=['plotutils','pandas>=0.14'],
+    install_requires=['plotutils','pandas>=0.13'],
     zip_safe=False
 ) 
