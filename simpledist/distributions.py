@@ -904,6 +904,7 @@ class DoubleGauss_Distribution(Distribution):
 class KDE_Distribution(Distribution):
     def __init__(self,samples,adaptive=True,draw_direct=True,bandwidth=None,**kwargs):
         self.samples = samples
+        self.bandwidth = bandwidth
         self.kde = KDE(samples,adaptive=adaptive,draw_direct=draw_direct,
                        bandwidth=bandwidth)
 
@@ -918,7 +919,10 @@ class KDE_Distribution(Distribution):
         s = pd.Series(self.samples)
         s.to_hdf(filename,path+'/samples')
         Distribution.save_hdf(self,filename,path=path,**kwargs)
-        
+        store = pd.HDFStore(filename)
+        store.get_storer('{}/fns'.format(path)).attrs.bandwidth = self.bandwidth
+        store.close()
+
     def __str__(self):
         return '%s = %.1f +/- %.1f' % (self.name,self.samples.mean(),self.samples.std())
 
