@@ -116,7 +116,8 @@ class Distribution(object):
 
     ppf = pctile
 
-    def save_hdf(self,filename,path='',res=1000,logspace=False):
+    def save_hdf(self,filename,path='',res=1000,logspace=False,
+                 keywords=None):
         """Saves distribution to an HDF5 file.
 
         Saves a pandas `dataframe` object containing tabulated pdf and cdf
@@ -140,6 +141,9 @@ class Distribution(object):
             Sets whether the tabulated function should be gridded with log or
             linear spacing.  Default will be logspace=False, corresponding
             to linear gridding.
+
+        keywords : dict, optional
+            A dictionary of keywords to save in the attributes of HDF Storer
         """
         if logspace:
             vals = np.logspace(np.log10(self.minval),
@@ -152,6 +156,12 @@ class Distribution(object):
              'cdf':self.cdf(vals)}
         df = pd.DataFrame(d)
         df.to_hdf(filename,path+'/fns')
+        store = pd.HDFStore(filename)
+        if keywords is None:
+            keywords = {}
+        attrs = store.get_storer('{}/fns'.format(path)).attrs
+        attrs.keywords = keywords            
+        store.close()
     
     def __call__(self,x):
         """
@@ -336,6 +346,11 @@ class Distribution_FromH5(Distribution):
         cdf = interpolate(fns['vals'],fns['cdf'],s=0)
         Distribution.__init__(self,pdf,cdf,minval=minval,maxval=maxval,
                               **kwargs)
+        store = pd.HDFStore(filename)
+        keywords = store.get_storer('{}/fns'.format(path)).attrs.keywords
+        store.close()
+        for kw,val in keywords.iteritems():
+            setattr(self,kw,val)
 
 
 class Empirical_Distribution(Distribution):
