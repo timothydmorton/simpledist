@@ -18,6 +18,7 @@ from plotutils import setfig
 
 from .kde import KDE
 
+#figure this generic loading thing out; draft stage currently
 def load_distribution(filename,path=''):
     fns = pd.read_hdf(filename,path)
     store = pd.HDFStore(filename)
