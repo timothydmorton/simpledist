@@ -18,6 +18,25 @@ from plotutils import setfig
 
 from .kde import KDE
 
+def load_distribution(filename,path=''):
+    fns = pd.read_hdf(filename,path)
+    store = pd.HDFStore(filename)
+    if '{}/samples'.format(path) in store:
+        samples = pd.read_hdf(filename,path+'/samples')
+        samples = np.array(samples)
+    minval = fns['vals'].iloc[0]
+    maxval = fns['vals'].iloc[-1]
+    pdf = interpolate(fns['vals'],fns['pdf'],s=0)
+    cdf = interpolate(fns['vals'],fns['cdf'],s=0)
+
+    attrs = store.get_storer('{}/fns'.format(path)).attrs
+    keywords = attrs.keywords
+    t = attrs.disttype
+    store.close()
+    return t.__init__()
+
+    
+
 class Distribution(object):
     """Base class to describe probability distribution.
     
@@ -54,6 +73,10 @@ class Distribution(object):
         Number of points to tabulate in order to calculate CDF, if not provided.
         Default is 500.
 
+    keywords : dict, optional
+        Optional dictionary of keywords; these will be saved with the distribution
+        when `save_hdf` is called.
+
     Raises
     ------
     ValueError
@@ -61,12 +84,21 @@ class Distribution(object):
     
     """
     def __init__(self,pdf,cdf=None,name='',minval=-np.inf,maxval=np.inf,norm=None,
-                 cdf_pts=500):
+                 cdf_pts=500,keywords=None):
         self.name = name            
         self.pdf = pdf
         self.cdf = cdf 
         self.minval = minval
         self.maxval = maxval
+        
+        if keywords is None:
+            self.keywords = {}
+        else:
+            self.keywords = keywords
+        self.keywords['name'] = name
+        self.keywords['minval'] = minval
+        self.keywords['maxval'] = maxval
+
 
         if norm is None:
             self.norm = quad(self.pdf,minval,maxval,full_output=1)[0]
@@ -116,8 +148,7 @@ class Distribution(object):
 
     ppf = pctile
 
-    def save_hdf(self,filename,path='',res=1000,logspace=False,
-                 keywords=None):
+    def save_hdf(self,filename,path='',res=1000,logspace=False):
         """Saves distribution to an HDF5 file.
 
         Saves a pandas `dataframe` object containing tabulated pdf and cdf
@@ -142,8 +173,6 @@ class Distribution(object):
             linear spacing.  Default will be logspace=False, corresponding
             to linear gridding.
 
-        keywords : dict, optional
-            A dictionary of keywords to save in the attributes of HDF Storer
         """
         if logspace:
             vals = np.logspace(np.log10(self.minval),
@@ -156,11 +185,13 @@ class Distribution(object):
              'cdf':self.cdf(vals)}
         df = pd.DataFrame(d)
         df.to_hdf(filename,path+'/fns')
+        if hasattr(self,'samples'):
+            s = pd.Series(self.samples)
+            s.to_hdf(filename,path+'/samples')
         store = pd.HDFStore(filename)
-        if keywords is None:
-            keywords = {}
         attrs = store.get_storer('{}/fns'.format(path)).attrs
-        attrs.keywords = keywords            
+        attrs.keywords = self.keywords
+        attrs.disttype = type(self)
         store.close()
     
     def __call__(self,x):
@@ -369,8 +400,9 @@ class Empirical_Distribution(Distribution):
     def __init__(self,xs,pdf,smooth=0,**kwargs):
         pdf /= np.trapz(pdf,xs)
         fn = interpolate(xs,pdf,s=smooth)
-        Distribution.__init__(self,fn,minval=xs.min(),maxval=xs.max(),**kwargs)
-        
+        keywords = {'smooth':smooth}
+        Distribution.__init__(self,fn,minval=xs.min(),maxval=xs.max(),
+                              keywords=keywords,**kwargs)
 
 class Gaussian_Distribution(Distribution):
     """Generates a normal distribution with given mu, sigma.
@@ -404,7 +436,9 @@ class Gaussian_Distribution(Distribution):
         if 'maxval' not in kwargs:
             kwargs['maxval'] = mu + 10*sig
 
-        Distribution.__init__(self,pdf,cdf,**kwargs)
+        keywords = {'mu':self.mu,'sig':self.sig}
+
+        Distribution.__init__(self,pdf,cdf,keywords=keywords,**kwargs)
 
     def __str__(self):
         return '%s = %.2f +/- %.2f' % (self.name,self.mu,self.sig)
@@ -459,7 +493,9 @@ class Hist_Distribution(Distribution):
         if 'minval' not in kwargs:
             kwargs['minval'] = samples.min()
 
-        Distribution.__init__(self,pdf,cdf,**kwargs)
+        keywords = {'bins':bins,'smooth':smooth,'order':order}
+
+        Distribution.__init__(self,pdf,cdf,keywords=keywords,**kwargs)
 
     def __str__(self):
         return '%s = %.1f +/- %.1f' % (self.name,self.samples.mean(),self.samples.std())
@@ -490,8 +526,6 @@ class Hist_Distribution(Distribution):
         return self.samples[inds]
 
     def save_hdf(self,filename,path='',**kwargs):
-        s = pd.Series(self.samples)
-        s.to_hdf(filename,path+'/samples')
         Distribution.save_hdf(self,filename,path=path,**kwargs)
 
     
@@ -701,7 +735,11 @@ class DoubleLorGauss_Distribution(Distribution):
                                       self.gam1,self.gam2,
                                       self.G1,self.G2,))
 
-        Distribution.__init__(self,pdf,**kwargs)
+        keywords = {'mu':mu,'sig1':sig1,
+                    'sig2':sig2,'gam1':gam1,'gam2':gam2,
+                    'G1':G1,'G2':G2}
+
+        Distribution.__init__(self,pdf,keywords=keywords,**kwargs)
         
         
 ######## DoubleGauss #########
@@ -889,7 +927,9 @@ class DoubleGauss_Distribution(Distribution):
         if 'maxval' not in kwargs:
             kwargs['maxval'] = mu + 5*sighi
 
-        Distribution.__init__(self,pdf,cdf,**kwargs)
+        keywords = {'mu':mu,'siglo':siglo,'sighi',sighi}
+
+        Distribution.__init__(self,pdf,cdf,keywords=keywords,**kwargs)
 
     def __str__(self):
         return '%s = %.2f +%.2f -%.2f' % (self.name,self.mu,self.sighi,self.siglo)
@@ -924,15 +964,13 @@ class KDE_Distribution(Distribution):
         if 'maxval' not in kwargs:
             kwargs['maxval'] = samples.max()      
 
-        Distribution.__init__(self,self.kde,**kwargs)
+        keywords = {'adaptive':adaptive,'draw_direct':draw_direct,
+                    'bandwidth':bandwidth}
+
+        Distribution.__init__(self,self.kde,keywords=keywords,**kwargs)
 
     def save_hdf(self,filename,path='',**kwargs):
-        s = pd.Series(self.samples)
-        s.to_hdf(filename,path+'/samples')
         Distribution.save_hdf(self,filename,path=path,**kwargs)
-        store = pd.HDFStore(filename)
-        store.get_storer('{}/fns'.format(path)).attrs.bandwidth = self.bandwidth
-        store.close()
 
     def __str__(self):
         return '%s = %.1f +/- %.1f' % (self.name,self.samples.mean(),self.samples.std())
