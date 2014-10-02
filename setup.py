@@ -5,7 +5,7 @@ def readme():
         return f.read()
 
 setup(name = "simpledist",
-    version = "0.1.5-1",
+    version = "0.1.5-2",
     description = "Defines objects useful for describing simple probability distributions.",
     long_description = readme(),
     author = "Timothy D. Morton",

@@ -928,7 +928,7 @@ class DoubleGauss_Distribution(Distribution):
         if 'maxval' not in kwargs:
             kwargs['maxval'] = mu + 5*sighi
 
-        keywords = {'mu':mu,'siglo':siglo,'sighi',sighi}
+        keywords = {'mu':mu,'siglo':siglo,'sighi':sighi}
 
         Distribution.__init__(self,pdf,cdf,keywords=keywords,**kwargs)
 
