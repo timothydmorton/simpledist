@@ -309,11 +309,13 @@ class Distribution_FromH5(Distribution):
     """Creates a Distribution object from one saved to an HDF file.
 
     File must have a `DataFrame` saved under [path]/fns in 
-    the .h5 file, containing 'vals', 'pdf', and 'cdf' columns.  If the
-    `disttype` keyword is set to 'hist' or 'kde', then also [path]/samples
-    should exist in the .h5 file containing the array of samples.  These
-    appropriate .h5 files will be created by a call to the `save_hdf` method
-    of the generic `Distribution` class.
+    the .h5 file, containing 'vals', 'pdf', and 'cdf' columns.
+    If samples are saved in the HDF storer, then they will be restored
+    to this object; so will any saved keyword attributes.
+
+    These appropriate .h5 files will be created by a call to the `save_hdf` 
+    method of the generic `Distribution` class.
+
 
     Parameters
     ----------
@@ -324,20 +326,15 @@ class Distribution_FromH5(Distribution):
         Path within the .h5 file where the distribution is saved.  By 
         default this will be the root level, but can be anywhere.
 
-    disttype : {None, 'hist', 'kde'}, optional
-        If this is set to 'hist' or 'kde', then samples must also be 
-        saved in the .h5 file.  (This is done automatically when saving
-        `Hist_Distribution` or `KDE_Distribution` objects.
-
     kwargs
         Keyword arguments are passed to the `Distribution` constructor.
     """
-    def __init__(self,filename,path='',disttype=None,**kwargs):
+    def __init__(self,filename,path='',**kwargs):
         """if disttype is 'hist' or 'kde' then samples are required
         """
         fns = pd.read_hdf(filename,path+'/fns')
-        self.disttype = disttype
-        if disttype in ['hist','kde']:
+        store = pd.HDFStore(filename)
+        if '{}/samples'.format(path) in store:
             samples = pd.read_hdf(filename,path+'/samples')
             self.samples = np.array(samples)
         minval = fns['vals'].iloc[0]
@@ -346,7 +343,6 @@ class Distribution_FromH5(Distribution):
         cdf = interpolate(fns['vals'],fns['cdf'],s=0)
         Distribution.__init__(self,pdf,cdf,minval=minval,maxval=maxval,
                               **kwargs)
-        store = pd.HDFStore(filename)
         keywords = store.get_storer('{}/fns'.format(path)).attrs.keywords
         store.close()
         for kw,val in keywords.iteritems():
