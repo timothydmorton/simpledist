@@ -191,11 +191,8 @@ class Distribution(object):
             s.to_hdf(filename,path+'/samples')
         store = pd.HDFStore(filename)
         attrs = store.get_storer('{}/fns'.format(path)).attrs
-        try:
-            attrs.keywords = self.keywords
-            attrs.disttype = type(self)
-        except AttributeError:
-            logging.warning('saved distribution {} does not have keywords or disttype saved; perhaps this distribution was written with an older version.'.format(filename))
+        attrs.keywords = self.keywords
+        attrs.disttype = type(self)
         store.close()
     
     def __call__(self,x):
@@ -375,13 +372,23 @@ class Distribution_FromH5(Distribution):
         minval = fns['vals'].iloc[0]
         maxval = fns['vals'].iloc[-1]
         pdf = interpolate(fns['vals'],fns['pdf'],s=0)
-        cdf = interpolate(fns['vals'],fns['cdf'],s=0)
+        
+        #check to see if tabulated CDF is monotonically increasing
+        d_cdf = fns['cdf'][1:] - fns['cdf'][:-1]
+        if np.any(d_cdf <= 0):
+            logging.warning('tabulated CDF in {} is not monotonically increasing. Recalculating CDF from PDF').format(filename))
+            cdf = None  #in this case, just recalc cdf from pdf
+        else:
+            cdf = interpolate(fns['vals'],fns['cdf'],s=0,k=1)
         Distribution.__init__(self,pdf,cdf,minval=minval,maxval=maxval,
                               **kwargs)
-        keywords = store.get_storer('{}/fns'.format(path)).attrs.keywords
-        store.close()
-        for kw,val in keywords.iteritems():
-            setattr(self,kw,val)
+        try:
+            keywords = store.get_storer('{}/fns'.format(path)).attrs.keywords
+            store.close()
+            for kw,val in keywords.iteritems():
+                setattr(self,kw,val)
+        except AttributeError:
+            logging.warning('saved distribution {} does not have keywords or disttype saved; perhaps this distribution was written with an older version.'.format(filename))
 
 
 class Empirical_Distribution(Distribution):
