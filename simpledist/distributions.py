@@ -123,9 +123,13 @@ class Distribution(object):
                 return y
             self.cdf = cdf
             #define minval_cdf, maxval_cdf 
-            self.minval_cdf = pts[cdfgrid==0][-1] #last 0 value
-            self.maxval_cdf = pts[cdfgrid==1][0] #first 1 value
-
+            zero_mask = cdfgrid==0
+            one_mask = cdfgrid==1
+            if zero_mask.sum()>0:
+                self.minval_cdf = pts[zero_mask][-1] #last 0 value
+            if one_mask.sum()>0:
+                self.maxval_cdf = pts[one_mask][0] #first 1 value
+            
     def pctile(self,pct,res=1000):
         """Returns the desired percentile of the distribution.
 
