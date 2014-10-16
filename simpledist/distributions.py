@@ -122,6 +122,9 @@ class Distribution(object):
                 y[np.where(x > self.maxval)] = 1
                 return y
             self.cdf = cdf
+            #define minval_cdf, maxval_cdf 
+            self.minval_cdf = pts[cdfgrid==0][-1] #last 0 value
+            self.maxval_cdf = pts[cdfgrid==1][0] #first 1 value
 
     def pctile(self,pct,res=1000):
         """Returns the desired percentile of the distribution.
@@ -318,9 +321,16 @@ class Distribution(object):
 
         """
         if minval is None:
-            minval = self.minval
+            if hasattr(self,'minval_cdf'):
+                minval = self.minval_cdf
+            else:
+                minval = self.minval
         if maxval is None:
-            maxval = self.maxval
+            if hasattr(self,'maxval_cdf'):
+                maxval = self.maxval_cdf
+            else:
+                maxval = self.maxval
+
         if maxval==np.inf or minval==-np.inf:
             raise ValueError('must have finite upper and lower bounds to resample. (set minval, maxval kws)')
 
