@@ -376,7 +376,7 @@ class Distribution_FromH5(Distribution):
         #check to see if tabulated CDF is monotonically increasing
         d_cdf = fns['cdf'][1:] - fns['cdf'][:-1]
         if np.any(d_cdf <= 0):
-            logging.warning('tabulated CDF in {} is not monotonically increasing. Recalculating CDF from PDF').format(filename))
+            logging.warning('tabulated CDF in {} is not monotonically increasing. Recalculating CDF from PDF'.format(filename))
             cdf = None  #in this case, just recalc cdf from pdf
         else:
             cdf = interpolate(fns['vals'],fns['cdf'],s=0,k=1)
