@@ -113,7 +113,7 @@ class Distribution(object):
             pts = np.linspace(minval,maxval,cdf_pts)
             pdfgrid = self(pts)
             cdfgrid = pdfgrid.cumsum()/pdfgrid.cumsum().max()
-            cdf_fn = interpolate(pts,cdfgrid,s=0)
+            cdf_fn = interpolate(pts,cdfgrid,s=0,k=1)
             
             def cdf(x):
                 x = np.atleast_1d(x)
@@ -362,8 +362,6 @@ class Distribution_FromH5(Distribution):
         Keyword arguments are passed to the `Distribution` constructor.
     """
     def __init__(self,filename,path='',**kwargs):
-        """if disttype is 'hist' or 'kde' then samples are required
-        """
         fns = pd.read_hdf(filename,path+'/fns')
         store = pd.HDFStore(filename)
         if '{}/samples'.format(path) in store:
@@ -371,7 +369,7 @@ class Distribution_FromH5(Distribution):
             self.samples = np.array(samples)
         minval = fns['vals'].iloc[0]
         maxval = fns['vals'].iloc[-1]
-        pdf = interpolate(fns['vals'],fns['pdf'],s=0)
+        pdf = interpolate(fns['vals'],fns['pdf'],s=0,k=1)
         
         #check to see if tabulated CDF is monotonically increasing
         d_cdf = fns['cdf'][1:] - fns['cdf'][:-1]
@@ -384,11 +382,11 @@ class Distribution_FromH5(Distribution):
                               **kwargs)
         try:
             keywords = store.get_storer('{}/fns'.format(path)).attrs.keywords
-            store.close()
             for kw,val in keywords.iteritems():
                 setattr(self,kw,val)
         except AttributeError:
             logging.warning('saved distribution {} does not have keywords or disttype saved; perhaps this distribution was written with an older version.'.format(filename))
+        store.close()
 
 
 class Empirical_Distribution(Distribution):
