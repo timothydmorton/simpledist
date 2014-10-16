@@ -191,8 +191,11 @@ class Distribution(object):
             s.to_hdf(filename,path+'/samples')
         store = pd.HDFStore(filename)
         attrs = store.get_storer('{}/fns'.format(path)).attrs
-        attrs.keywords = self.keywords
-        attrs.disttype = type(self)
+        try:
+            attrs.keywords = self.keywords
+            attrs.disttype = type(self)
+        except AttributeError:
+            logging.warning('saved distribution {} does not have keywords or disttype saved; perhaps this distribution was written with an older version.'.format(filename))
         store.close()
     
     def __call__(self,x):
