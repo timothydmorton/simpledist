@@ -4,8 +4,18 @@ def readme():
     with open('README.rst') as f:
         return f.read()
 
+# Hackishly inject a constant into builtins to enable importing of the
+# package before the library is built.
+import sys
+if sys.version_info[0] < 3:
+    import __builtin__ as builtins
+else:
+    import builtins
+builtins.__SIMPLEDIST_SETUP__ = True
+import simpledist
+
 setup(name = "simpledist",
-    version = "0.1.5-4",
+    version = simpledist.__version__,
     description = "Defines objects useful for describing simple probability distributions.",
     long_description = readme(),
     author = "Timothy D. Morton",

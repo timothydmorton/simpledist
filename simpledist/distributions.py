@@ -505,7 +505,7 @@ class Hist_Distribution(Distribution):
         def pdf(x):
             x = np.atleast_1d(x)
             y = pdf_initial(x)
-            w = np.where((x < bins[0]) | (x > bins[-1]))
+            w = np.where((x < self.bins[0]) | (x > self.bins[-1]))
             y[w] = 0
             return y
         cdf = interpolate(bins,hist.cumsum()/hist.cumsum().max(),s=smooth,
