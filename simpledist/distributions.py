@@ -972,6 +972,40 @@ class DoubleGauss_Distribution(Distribution):
         vals[lo] = lovals[lo]
         return vals
     
+def powerlawfn(alpha,minval,maxval):
+    C = powerlawnorm(alpha,minval,maxval)
+    def fn(inpx):
+        x = np.atleast_1d(inpx)
+        y = C*x**(alpha)
+        y[(x < minval) | (x > maxval)] = 0
+        return y
+    return fn
+
+def powerlawnorm(alpha,minval,maxval):
+    if np.size(alpha)==1:
+        if alpha == -1:
+            C = 1/np.log(maxval/minval)
+        else:
+            C = (1+alpha)/(maxval**(1+alpha)-minval**(1+alpha))
+    else:
+        C = np.zeros(np.size(alpha))
+        w = np.where(alpha==-1)
+        if len(w[0]>0):
+            C[w] = 1./np.log(maxval/minval)*np.ones(len(w[0]))
+            nw = np.where(alpha != -1)
+            C[nw] = (1+alpha[nw])/(maxval**(1+alpha[nw])-minval**(1+alpha[nw]))
+        else:
+            C = (1+alpha)/(maxval**(1+alpha)-minval**(1+alpha))
+    return C
+
+
+class PowerLaw_Distribution(Distribution):
+    def __init__(self,alpha,minval,maxval,**kwargs):
+        self.alpha = alpha
+        pdf = powerlawfn(alpha,minval,maxval)
+
+        Distribution.__init__(self,pdf,minval=minval,maxval=maxval)
+
 
 ######## KDE ###########
 
