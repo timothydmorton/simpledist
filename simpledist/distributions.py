@@ -288,7 +288,7 @@ class Distribution(object):
         setfig(fig)
         plt.plot(xs,self(xs),**kwargs)
         plt.xlabel(self.name)
-        plt.ylim(ymin=0)
+        plt.ylim(ymin=0,ymax=self(xs).max()*1.2)
 
     def resample(self,N,minval=None,maxval=None,log=False,res=1e4):
         """Returns random samples generated according to the distribution
