@@ -486,6 +486,10 @@ class Hist_Distribution(Distribution):
         Keyword passed to `np.histogram`.  If integer, ths will be 
         the number of bins, if array-like, then this defines bin edges.
 
+    equibin : bool, optional
+        If true and ``bins`` is an integer ``N``, then the bins will be 
+        found by splitting the data into ``N`` equal-sized groups.
+
     smooth : int or float
         Smoothing parameter used by the interpolation function.
 
@@ -496,8 +500,16 @@ class Hist_Distribution(Distribution):
     kwargs
         Keyword arguments passed to `Distribution` constructor.
     """
-    def __init__(self,samples,bins=10,smooth=0,order=1,**kwargs):
+    def __init__(self,samples,bins=10,equibin=True,smooth=0,order=1,**kwargs):
         self.samples = samples
+        
+        if type(bins)==type(10) and equibin:
+            N = len(samples)//bins
+            sortsamples = np.sort(samples)
+            bins = sortsamples[0::N]
+            if bins[-1] != sortsamples[-1]:
+                bins = np.concatenate([bins,np.array([sortsamples[-1]])])
+
         hist,bins = np.histogram(samples,bins=bins,density=True)
         self.bins = bins
         bins = (bins[1:] + bins[:-1])/2.
