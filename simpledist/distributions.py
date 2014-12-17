@@ -112,6 +112,7 @@ class Distribution(object):
         else: #tabulate & interpolate CDF.
             pts = np.linspace(minval,maxval,cdf_pts)
             pdfgrid = self(pts)
+
             cdfgrid = pdfgrid.cumsum()/pdfgrid.cumsum().max()
             cdf_fn = interpolate(pts,cdfgrid,s=0,k=1)
             
@@ -344,7 +345,11 @@ class Distribution(object):
         else:
             vals = np.linspace(minval,maxval,res)
             
-        ys = self.cdf(vals)
+        #sometimes cdf is flat.  so ys will need to be uniqued
+        ys,yinds = np.unique(self.cdf(vals), return_index=True)
+        vals = vals[yinds]
+        
+
         inds = np.digitize(u,ys)
         return vals[inds]
 
@@ -387,8 +392,8 @@ class Distribution_FromH5(Distribution):
         
         #check to see if tabulated CDF is monotonically increasing
         d_cdf = fns['cdf'][1:] - fns['cdf'][:-1]
-        if np.any(d_cdf <= 0):
-            logging.warning('tabulated CDF in {} is not monotonically increasing. Recalculating CDF from PDF'.format(filename))
+        if np.any(d_cdf < 0):
+            logging.warning('tabulated CDF in {} is not strictly increasing. Recalculating CDF from PDF'.format(filename))
             cdf = None  #in this case, just recalc cdf from pdf
         else:
             cdf = interpolate(fns['vals'],fns['cdf'],s=0,k=1)
