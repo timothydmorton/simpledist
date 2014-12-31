@@ -382,8 +382,9 @@ class Distribution_FromH5(Distribution):
     """
     def __init__(self,filename,path='',**kwargs):
         fns = pd.read_hdf(filename,path+'/fns')
-        store = pd.HDFStore(filename)
+        store = pd.HDFStore(filename,'r')
         if '{}/samples'.format(path) in store:
+            store.close()
             samples = pd.read_hdf(filename,path+'/samples')
             self.samples = np.array(samples)
         minval = fns['vals'].iloc[0]
@@ -399,6 +400,8 @@ class Distribution_FromH5(Distribution):
             cdf = interpolate(fns['vals'],fns['cdf'],s=0,k=1)
         Distribution.__init__(self,pdf,cdf,minval=minval,maxval=maxval,
                               **kwargs)
+
+        store = pd.HDFStore(filename,'r')
         try:
             keywords = store.get_storer('{}/fns'.format(path)).attrs.keywords
             for kw,val in keywords.iteritems():
