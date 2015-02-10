@@ -475,7 +475,7 @@ class Gaussian_Distribution(Distribution):
         return '%s = %.2f +/- %.2f' % (self.name,self.mu,self.sig)
         
     def resample(self,N,**kwargs):
-        return rand.normal(size=N)*self.sig + self.mu
+        return rand.normal(size=int(N))*self.sig + self.mu
 
 
 class Hist_Distribution(Distribution):
