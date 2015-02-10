@@ -325,6 +325,7 @@ class Distribution(object):
             the grid-based approach.
 
         """
+        N = int(N)
         if minval is None:
             if hasattr(self,'minval_cdf'):
                 minval = self.minval_cdf
@@ -381,11 +382,10 @@ class Distribution_FromH5(Distribution):
         Keyword arguments are passed to the `Distribution` constructor.
     """
     def __init__(self,filename,path='',**kwargs):
-        fns = pd.read_hdf(filename,path+'/fns')
         store = pd.HDFStore(filename,'r')
+        fns = store[path+'/fns']
         if '{}/samples'.format(path) in store:
-            store.close()
-            samples = pd.read_hdf(filename,path+'/samples')
+            samples = store[path+'/samples']
             self.samples = np.array(samples)
         minval = fns['vals'].iloc[0]
         maxval = fns['vals'].iloc[-1]

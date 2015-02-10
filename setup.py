@@ -29,6 +29,6 @@ setup(name = "simpledist",
       'Programming Language :: Python',
       'Topic :: Scientific/Engineering'
       ],
-    install_requires=['plotutils','pandas>=0.13'],
+    install_requires=['plotutils','pandas>=0.15'],
     zip_safe=False
 ) 
