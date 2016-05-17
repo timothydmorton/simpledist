@@ -1,3 +1,5 @@
+from __future__ import absolute_import, division, print_function
+
 __author__ = 'Timothy D. Morton <tim.morton@gmail.com>'
 """
 Defines objects useful for describing probability distributions.

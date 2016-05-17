@@ -1,3 +1,4 @@
+from __future__ import absolute_import, division, print_function
 import numpy as np
 from scipy.stats import gaussian_kde
 import numpy.random as rand
@@ -237,11 +238,11 @@ def newton(f,c,tol=0.0001,restrict=None):
     
     Returns the x closest to c such that f(x) = 0
     """
-    #print c
+    #print(c)
     if restrict:
         lo,hi = restrict
         if c < lo or c > hi:
-            print c
+            print(c)
             c = random*(hi-lo)+lo
 
     if fuzzyequals(f(c),0,tol):
