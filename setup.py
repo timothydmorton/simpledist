@@ -1,4 +1,5 @@
 from setuptools import setup
+import os
 
 def readme():
     with open('README.rst') as f:
@@ -13,6 +14,7 @@ else:
     import builtins
 builtins.__SIMPLEDIST_SETUP__ = True
 import simpledist
+version = simpledist.__version__
 
 # Publish the library to PyPI.
 if "publish" in sys.argv[-1]:
@@ -27,7 +29,7 @@ if "tag" in sys.argv:
 
 
 setup(name = "simpledist",
-    version = simpledist.__version__,
+    version = version,
     description = "Defines objects useful for describing simple probability distributions.",
     long_description = readme(),
     author = "Timothy D. Morton",
