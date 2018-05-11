@@ -14,6 +14,18 @@ else:
 builtins.__SIMPLEDIST_SETUP__ = True
 import simpledist
 
+# Publish the library to PyPI.
+if "publish" in sys.argv[-1]:
+    os.system("python setup.py sdist upload")
+    sys.exit()
+
+# Push a new tag to GitHub.
+if "tag" in sys.argv:
+    os.system("git tag -a {0} -m 'version {0}'".format(version))
+    os.system("git push --tags")
+    sys.exit()
+
+
 setup(name = "simpledist",
     version = simpledist.__version__,
     description = "Defines objects useful for describing simple probability distributions.",
