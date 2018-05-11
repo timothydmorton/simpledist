@@ -31,4 +31,4 @@ setup(name = "simpledist",
       ],
     install_requires=['plotutils','pandas>=0.14'],
     zip_safe=False
-) 
+)
